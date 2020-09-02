@@ -1,0 +1,57 @@
+---
+title: "Predictiong the manner of the exercise"
+author: "vydevyatnikov"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Annotation 
+In this little research we used data from Groupware project and our goal was to predict the manner of exercising. We cleaned data from columns with too many NA's. Then we divided data into two groups: Training and Testing. After that we fitted model with Training dataset using random forest algorithm with cross-validation as a resampling method. Then we tested it on Testing dataset. Results of testing presented in a Results chapter. 
+# Getting and cleaning the data
+In this part of the code, we downloaded data and cleaned them up from NA's. We did it by deleting columns in which almost all observations were NA. Also, we deleted columns with identifiers - first seven variables. At the end of that process, we get a dataset with 19622 observations and 53 variables. 
+```{r}
+library(plyr)
+library(dplyr)
+library(caret)
+library(GGally)
+library(RANN)
+library(parallel)
+data <- read.csv("pml-training.csv", na.strings = "")
+data[data == "NA"] <- NA
+x <- c()
+for (i in 1:160) {
+        z <- sum(is.na(data[,i]))
+        x <- c(x, z)
+}
+x
+n <- which(x != 0)
+data2 <- select(data, !all_of(n))
+glimpse(data2)
+data3 <- select(data2, 8:60)
+data3$classe <- as.factor(data3$classe)
+```
+# Creating datasets
+In the next code chunk, we divided data into two parts in order to perform training and testing. 
+```{r}
+set.seed(12345)
+inTrain <- createDataPartition(data3$classe, p = 0.6, list = F)
+Training <- data3[inTrain, ]
+Testing <- data3[-inTrain, ]
+```
+# Training and testing model
+In this part of the code, we used a random forest algorithm in order to create a model1 and tested that model on a Testing dataset. We added trainControl option to change the way r choose observation in samples during the execution of the code from bootstrapping (defualt) to cross-validation. 
+```{r}
+trControl <- trainControl(method = "cv")
+model1 <- train(classe ~ ., data = Training, method = "rf", trControl = trControl)
+prediction <- predict(model1, Testing)
+cm <- confusionMatrix(prediction, Testing$classe)
+cm
+```
+# Results
+As we can see from the statistics above accuracy of model is equal to `r cm[[3]][[1]]`. This is nothing but an **out of sample error** and it is pretty low. It's also interesting to see how final model was chose. 
+```{r}
+plot(model1, lwd = 2, main = "Random forest accuracy", xlab = "Predictors", ylab = "Accuracy")
+```
+We can notice that when we increase the number of variables sampled as potential candidates at each split accuracy grow only until we reached number 27. After that line descend rapidly, so a number of variables sampled as potential candidates at each split equal to 27 is optimal and r chose a model with that parameter. 
